@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using LabEquipmentApi.Data;
+using FluentValidation;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -8,16 +9,22 @@ builder.Services.AddControllers();
 builder.Services.AddDbContext<LabDbContext>(options =>
     options.UseNpgsql(
         builder.Configuration.GetConnectionString("LabDbConnection")));
+builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
-
+builder.Services.AddSwaggerGen();
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+
+    app.UseSwaggerUI(options =>
+    {
+        options.SwaggerEndpoint("/openapi/v1.json", "LabEquipmentApi");
+    });
 }
 
 app.UseHttpsRedirection();

@@ -1,20 +1,27 @@
-﻿
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using LabEquipmentApi.Data;
 using LabEquipmentApi.Domain;
+using Mapster;
+using LabEquipmentApi.Contracts.Equipment;
+using FluentValidation;
 
 namespace LabEquipmentApi.Controllers;
 
-[Route("api/[controller]")]
+[Route("api/equipment")]
 [ApiController]
 public class EquipmentController : ControllerBase
 {
     private readonly LabDbContext _context;
 
-    public EquipmentController(LabDbContext context)
+    private readonly IValidator<CreateEquipmentRequest> _createValidator;
+
+    public EquipmentController(
+        LabDbContext context,
+        IValidator<CreateEquipmentRequest> createValidator)
     {
         _context = context;
+        _createValidator = createValidator;
     }
 
     // GET: api/equipment
@@ -40,8 +47,31 @@ public class EquipmentController : ControllerBase
 
     // POST: api/equipment
     [HttpPost]
-    public async Task<ActionResult<Equipment>> PostEquipment(Equipment equipment)
+    public async Task<ActionResult<Equipment>> PostEquipment(
+    CreateEquipmentRequest request)
     {
+        var validationResult =
+            await _createValidator.ValidateAsync(request);
+
+        if (!validationResult.IsValid)
+        {
+            foreach (var error in validationResult.Errors)
+            {
+                ModelState.AddModelError(
+                    error.PropertyName,
+                    error.ErrorMessage);
+            }
+
+            return ValidationProblem(ModelState);
+        }
+
+        var equipment = new Equipment
+        {
+            Name = request.Name,
+            Room = request.Room,
+            IsAvailable = true
+        };
+
         _context.EquipmentItems.Add(equipment);
         await _context.SaveChangesAsync();
 
@@ -82,5 +112,17 @@ public class EquipmentController : ControllerBase
         await _context.SaveChangesAsync();
 
         return NoContent();
+    }
+
+    [HttpGet("available")]
+    public async Task<ActionResult<IEnumerable<EquipmentListItemResponse>>> GetAvailableEquipment()
+    {
+        var equipment = await _context.EquipmentItems
+            .Where(e => e.IsAvailable)
+            .OrderBy(e => e.Name)
+            .ProjectToType<EquipmentListItemResponse>()
+            .ToListAsync();
+
+        return equipment;
     }
 }
